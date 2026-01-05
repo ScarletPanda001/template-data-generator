@@ -1,6 +1,6 @@
 # Template Data Generator 🎲
 
-A minimal template for creating synthetic reasoning task generators. Fork this and customize it for your own task (maze, sudoku, rotation, etc.).
+A minimal template for creating synthetic reasoning task generators. This repository implements a **bouncing ball trajectory prediction task** where a ball bounces off four walls in a bounded area. Fork this and customize it for your own task (maze, sudoku, rotation, etc.).
 
 ---
 
