@@ -1,6 +1,6 @@
-# Template Data Generator 🎲
+# Optics Reflection Data Generator 🔬
 
-A template for creating synthetic reasoning task data generators. Fork this repository and customize it to generate your own task data (mazes, sudoku, rotations, board games, etc.).
+A data generator for creating synthetic "Optics Reflection" generation tasks. This generator creates datasets where light rays need to be predicted when they hit a mirror surface, following the law of reflection where the angle of incidence equals the angle of reflection.
 
 ---
 
