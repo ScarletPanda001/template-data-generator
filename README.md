@@ -1,6 +1,6 @@
-# Template Data Generator 🎲
+# Optics Refraction Data Generator 🎯
 
-A template for creating synthetic reasoning task data generators. Fork this repository and customize it to generate your own task data (mazes, sudoku, rotations, board games, etc.).
+A data generator for creating synthetic "Light Refraction" reasoning tasks. This generator creates datasets where light refraction through glass needs to be predicted, given the glass refractive index and incident angle. The refracted ray must extend to the edge of the image following Snell's law.
 
 ---
 
