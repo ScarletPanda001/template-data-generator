@@ -16,9 +16,9 @@ import random
 
 PROMPTS = {
     "default": [
-        "Given the refractive index of glass = {n_glass:.2f}, predict the refraction of light through the glass.",
-        "Given the glass refractive index = {n_glass:.2f}, predict how light refracts when passing through the glass.",
-        "Given the refractive index of glass = {n_glass:.2f}, predict the light refraction through the glass surface.",
+        "Given the refractive index of glass = {n_glass:.2f}, predict the refraction of light through the glass. The refracted ray should extend to the edge of the image.",
+        "Given the glass refractive index = {n_glass:.2f}, predict how light refracts when passing through the glass. Extend the refracted ray to the image edge.",
+        "Given the refractive index of glass = {n_glass:.2f}, predict the light refraction through the glass surface. The refracted ray must extend all the way to the edge of the image.",
     ],
 }
 
