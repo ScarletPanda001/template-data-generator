@@ -413,6 +413,13 @@ img = renderer.create_image()  # Create blank image
 - Create visual representations
 - Show reasoning processes
 
+### 6. Optics (e.g., Light Reflection)
+
+- Generate light reflection tasks with mirror surfaces
+- Calculate reflection angles using the law of reflection
+- Render incident and reflected rays with proper angles
+- Create animations showing light hitting mirror and reflecting
+
 ---
 
 ## ✨ Best Practices
@@ -536,7 +543,7 @@ See the `LICENSE` file for details.
 If you have questions, please:
 1. Check the troubleshooting section in this document
 2. Check comments in the code
-3. Review example code (currently chess task)
+3. Review example code (currently optics reflection task)
 
 ---
 

@@ -16,9 +16,9 @@ import random
 
 PROMPTS = {
     "default": [
-        "Given the refractive index of glass = {n_glass:.2f}, predict the refraction of light through the glass.",
-        "Given the glass refractive index = {n_glass:.2f}, predict how light refracts when passing through the glass.",
-        "Given the refractive index of glass = {n_glass:.2f}, predict the light refraction through the glass surface.",
+        "Given the mirror reflectivity = {reflectivity:.2f}, predict the reflection of light when it hits the mirror.",
+        "Given the mirror reflectivity = {reflectivity:.2f}, predict how light reflects when it encounters the mirror.",
+        "Given the mirror reflectivity = {reflectivity:.2f}, predict the light reflection from the mirror surface.",
     ],
 }
 
@@ -29,20 +29,23 @@ def get_prompt(task_type: str = "default", task_data: dict = None) -> str:
     
     Args:
         task_type: Type of task (key in PROMPTS dict)
-        task_data: Task data dictionary containing n_glass
+        task_data: Task data dictionary containing reflectivity
         
     Returns:
-        Random prompt string from the specified type with refractive index filled in
+        Random prompt string from the specified type with reflectivity filled in
     """
     prompts = PROMPTS.get(task_type, PROMPTS["default"])
     prompt_template = random.choice(prompts)
     
-    # Fill in the refractive index if task_data is provided
-    if task_data and "n_glass" in task_data:
-        return prompt_template.format(n_glass=task_data["n_glass"])
+    # Fill in the reflectivity if task_data is provided
+    if task_data and "reflectivity" in task_data:
+        base_prompt = prompt_template.format(reflectivity=task_data["reflectivity"])
     else:
         # Fallback if no task_data provided
-        return prompt_template.format(n_glass=1.5)
+        base_prompt = prompt_template.format(reflectivity=0.8)
+    
+    # Add requirement about extending to frame boundary
+    return base_prompt + " Your generated light ray should go all the way until the boundary of the frame."
 
 
 def get_all_prompts(task_type: str = "default") -> list[str]:
@@ -76,11 +79,11 @@ def get_all_prompts(task_type: str = "default") -> list[str]:
 
 RUBRICS = {
     "default": [
-        """Check if the solution correctly predicts the light refraction angle based on Snell's law. Verify that the refracted ray angle matches the calculated value using the given glass refractive index. Ensure the animation shows smooth light propagation from air into glass, with the ray bending at the glass surface according to physical laws. The final visualization should clearly show both the incident and refracted rays with correct angles.""",
+        """Check if the solution correctly predicts the light reflection angle based on the law of reflection. Verify that the reflected ray angle matches the incident angle relative to the normal, following the physical law that the angle of incidence equals the angle of reflection. Ensure the animation shows smooth light propagation hitting the mirror and reflecting, with the ray following physical laws. The final visualization should clearly show both the incident and reflected rays with correct angles, and the reflected ray should extend all the way to the boundary of the frame.""",
         
-        """Verify that the solution accurately calculates and visualizes the refraction angle using the provided glass refractive index. Check that the light ray bends correctly at the glass-air interface, with the bending direction and magnitude consistent with Snell's law. The animation should smoothly show light entering the glass and refracting, and the final state should clearly demonstrate the refracted ray propagating in the glass at the correct angle.""",
+        """Verify that the solution accurately calculates and visualizes the reflection angle using the provided mirror reflectivity. Check that the light ray reflects correctly at the mirror surface, with the reflection angle matching the incident angle relative to the normal. The animation should smoothly show light hitting the mirror and reflecting according to physical laws, and the final state should clearly demonstrate the reflected ray propagating at the correct angle and extending to the frame boundary.""",
         
-        """Confirm the solution shows the correct refraction angle calculation and visualization. Check that the refracted ray angle is accurate based on the given glass refractive index and incident angle. The animation should demonstrate smooth light propagation and refraction, and the final visualization should clearly show the light ray following physical laws as it enters and propagates through the glass.""",
+        """Confirm the solution shows the correct reflection angle calculation and visualization. Check that the reflected ray angle is accurate based on the given mirror reflectivity and incident angle, following the law of reflection. The animation should demonstrate smooth light propagation and reflection, and the final visualization should clearly show the light ray following physical laws as it hits the mirror and reflects, with the reflected ray extending all the way until the boundary of the frame.""",
     ],
 }
 

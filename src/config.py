@@ -51,13 +51,10 @@ class TaskConfig(GenerationConfig):
     #  TASK-SPECIFIC SETTINGS
     # ══════════════════════════════════════════════════════════════════════════
     
-    # Glass refractive index range
-    n_glass_min: float = Field(default=1.3, description="Minimum glass refractive index")
-    n_glass_max: float = Field(default=2.0, description="Maximum glass refractive index")
+    # Mirror reflectivity range (0.0 to 1.0)
+    reflectivity_min: float = Field(default=0.3, description="Minimum mirror reflectivity")
+    reflectivity_max: float = Field(default=1.0, description="Maximum mirror reflectivity")
     
     # Incident angle range (in degrees, measured from normal)
     theta_min: float = Field(default=5.0, description="Minimum incident angle (degrees)")
     theta_max: float = Field(default=80.0, description="Maximum incident angle (degrees)")
-    
-    # Air refractive index (constant)
-    n_air: float = Field(default=1.0, description="Air refractive index")

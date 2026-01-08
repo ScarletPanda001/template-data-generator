@@ -21,9 +21,9 @@ from .prompts import get_prompt, get_rubric
 
 class TaskGenerator(BaseGenerator):
     """
-    Optics refraction task generator.
+    Optics reflection task generator.
     
-    Generates tasks for predicting light refraction through glass.
+    Generates tasks for predicting light reflection from mirror.
     """
     
     def __init__(self, config: TaskConfig):
@@ -70,110 +70,99 @@ class TaskGenerator(BaseGenerator):
     # ══════════════════════════════════════════════════════════════════════════
     
     def _generate_task_data(self) -> dict:
-        """Generate optics refraction task data."""
-        # Random glass refractive index
-        n_glass = random.uniform(self.config.n_glass_min, self.config.n_glass_max)
+        """Generate optics reflection task data."""
+        # Random mirror reflectivity
+        reflectivity = random.uniform(self.config.reflectivity_min, self.config.reflectivity_max)
         
-        # Random incident angle (theta) in degrees
+        # Random incident angle (theta) in degrees, measured from normal
         theta_degrees = random.uniform(self.config.theta_min, self.config.theta_max)
         theta_radians = math.radians(theta_degrees)
         
-        # Calculate refraction angle using Snell's law: n1 * sin(theta1) = n2 * sin(theta2)
-        # n_air * sin(theta_incident) = n_glass * sin(theta_refracted)
-        sin_theta_refracted = (self.config.n_air * math.sin(theta_radians)) / n_glass
-        
-        # Check for total internal reflection (shouldn't happen for air to glass)
-        if sin_theta_refracted > 1.0:
-            sin_theta_refracted = 1.0
-        
-        theta_refracted_radians = math.asin(sin_theta_refracted)
-        theta_refracted_degrees = math.degrees(theta_refracted_radians)
+        # Reflection law: incident angle = reflection angle (both measured from normal)
+        theta_reflected_degrees = theta_degrees
+        theta_reflected_radians = theta_radians
         
         return {
-            "n_glass": n_glass,
-            "n_air": self.config.n_air,
+            "reflectivity": reflectivity,
             "theta_incident_degrees": theta_degrees,
             "theta_incident_radians": theta_radians,
-            "theta_refracted_degrees": theta_refracted_degrees,
-            "theta_refracted_radians": theta_refracted_radians,
+            "theta_reflected_degrees": theta_reflected_degrees,
+            "theta_reflected_radians": theta_reflected_radians,
             "type": "default"
         }
-        """Generate mate-in-1 position using chess library."""
-        generators = [
-            self._gen_back_rank_mate,
-            self._gen_queen_mate,
-            self._gen_rook_mate,
-        ]
-        
-        for _ in range(10):  # Try up to 10 times
-            gen_func = random.choice(generators)
-            position = gen_func()
-            if position and self._validate_mate(position):
-                return position
-        
-        # Fallback to template
-        return random.choice(self._get_fallback_templates())
     
     def _render_initial_state(self, task_data: dict) -> Image.Image:
-        """Render initial state: glass surface, incident ray, and angle annotation."""
+        """Render initial state: mirror surface, incident ray, and angle annotation."""
         img = self.renderer.create_blank_image(bg_color=(255, 255, 255))
         draw = ImageDraw.Draw(img)
         
         width, height = self.config.image_size
         center_x, center_y = width // 2, height // 2
         
-        # Glass surface: horizontal line in the middle
-        glass_y = center_y
-        glass_line_width = 3
-        draw.line([(0, glass_y), (width, glass_y)], fill=(0, 0, 0), width=glass_line_width)
+        # Mirror surface: horizontal line in the middle
+        mirror_y = center_y
+        mirror_line_width = 3
+        draw.line([(0, mirror_y), (width, mirror_y)], fill=(0, 0, 0), width=mirror_line_width)
         
-        # Glass hatch lines (below the surface)
+        # Mirror hatch lines (horizontal and diagonal lines to represent mirror)
         hatch_spacing = 8
         hatch_length = 15
-        hatch_angle = 45  # degrees
         num_hatches = width // hatch_spacing
         
+        # Draw horizontal hatch lines (representing mirror surface)
         for i in range(num_hatches):
             x = i * hatch_spacing
-            # Draw diagonal hatch lines
             x1 = x
-            y1 = glass_y + 5
+            y1 = mirror_y + 5
+            x2 = x1 + hatch_length
+            y2 = y1
+            draw.line([(x1, y1), (x2, y2)], fill=(100, 100, 100), width=1)
+        
+        # Draw diagonal hatch lines (cross-hatch pattern)
+        hatch_angle = 45  # degrees
+        for i in range(num_hatches):
+            x = i * hatch_spacing
+            x1 = x
+            y1 = mirror_y + 5
             x2 = x1 + hatch_length * math.cos(math.radians(hatch_angle))
             y2 = y1 + hatch_length * math.sin(math.radians(hatch_angle))
             draw.line([(x1, y1), (x2, y2)], fill=(100, 100, 100), width=1)
         
-        # Incident ray: from top-left to glass surface
+        # Incident ray: from top-left to mirror surface
         theta = task_data["theta_incident_radians"]
         
-        # Calculate ray start point (above glass)
-        # Ray comes from left side, hits glass surface at center
-        ray_length_above = center_y - 50  # Distance from top to glass
+        # Calculate ray start point (above mirror)
+        # Ray comes from left side, hits mirror surface at center
+        ray_length_above = center_y - 50  # Distance from top to mirror
         ray_start_x = center_x - ray_length_above * math.tan(theta)
         ray_start_y = 50
         
-        # Ray end point (at glass surface)
+        # Ray end point (at mirror surface)
         ray_end_x = center_x
-        ray_end_y = glass_y
+        ray_end_y = mirror_y
         
         # Draw incident ray with arrow
         self._draw_arrow(draw, (ray_start_x, ray_start_y), (ray_end_x, ray_end_y), 
                         color=(0, 0, 255), width=3)
         
-        # Draw normal line (perpendicular to glass surface)
+        # Draw normal line (perpendicular to mirror surface)
         normal_length = 30
-        draw.line([(center_x, glass_y - normal_length), (center_x, glass_y + normal_length)], 
+        draw.line([(center_x, mirror_y - normal_length), (center_x, mirror_y + normal_length)], 
                  fill=(150, 150, 150), width=1)
         
         # Draw angle arc and label
         angle_arc_radius = 40
         # Angle arc from normal to incident ray
+        # Normal points up (-90 degrees in PIL's coordinate system)
+        # If ray comes from left, angle should be from normal (-90) to normal - theta
+        # PIL's arc: 0 degrees is 3 o'clock, positive is counterclockwise
         start_angle = -90  # Normal points up
-        end_angle = -90 + math.degrees(theta)
+        end_angle = -90 - math.degrees(theta)  # Ray angle (negative because it's to the left of normal)
         
         # Draw angle arc
-        bbox = (center_x - angle_arc_radius, glass_y - angle_arc_radius,
-                center_x + angle_arc_radius, glass_y + angle_arc_radius)
-        draw.arc(bbox, start=start_angle, end=end_angle, fill=(0, 0, 0), width=2)
+        bbox = (center_x - angle_arc_radius, mirror_y - angle_arc_radius,
+                center_x + angle_arc_radius, mirror_y + angle_arc_radius)
+        draw.arc(bbox, start=end_angle, end=start_angle, fill=(0, 0, 0), width=2)
         
         # Label angle: "θ = X°"
         theta_degrees = task_data["theta_incident_degrees"]
@@ -181,66 +170,120 @@ class TaskGenerator(BaseGenerator):
         
         # Position label near the angle arc
         label_x = center_x + angle_arc_radius + 10
-        label_y = glass_y - angle_arc_radius
+        label_y = mirror_y - angle_arc_radius
         font = self._get_font(size=20)
         draw.text((label_x, label_y), angle_label, fill=(0, 0, 0), font=font)
         
         return img
     
     def _render_final_state(self, task_data: dict) -> Image.Image:
-        """Render final state: glass surface, incident ray, refracted ray."""
+        """Render final state: mirror surface, incident ray, reflected ray."""
         img = self.renderer.create_blank_image(bg_color=(255, 255, 255))
         draw = ImageDraw.Draw(img)
         
         width, height = self.config.image_size
         center_x, center_y = width // 2, height // 2
         
-        # Glass surface: horizontal line in the middle
-        glass_y = center_y
-        glass_line_width = 3
-        draw.line([(0, glass_y), (width, glass_y)], fill=(0, 0, 0), width=glass_line_width)
+        # Mirror surface: horizontal line in the middle
+        mirror_y = center_y
+        mirror_line_width = 3
+        draw.line([(0, mirror_y), (width, mirror_y)], fill=(0, 0, 0), width=mirror_line_width)
         
-        # Glass hatch lines (below the surface)
+        # Mirror hatch lines (horizontal and diagonal)
         hatch_spacing = 8
         hatch_length = 15
-        hatch_angle = 45  # degrees
         num_hatches = width // hatch_spacing
         
+        # Draw horizontal hatch lines
         for i in range(num_hatches):
             x = i * hatch_spacing
             x1 = x
-            y1 = glass_y + 5
+            y1 = mirror_y + 5
+            x2 = x1 + hatch_length
+            y2 = y1
+            draw.line([(x1, y1), (x2, y2)], fill=(100, 100, 100), width=1)
+        
+        # Draw diagonal hatch lines
+        hatch_angle = 45  # degrees
+        for i in range(num_hatches):
+            x = i * hatch_spacing
+            x1 = x
+            y1 = mirror_y + 5
             x2 = x1 + hatch_length * math.cos(math.radians(hatch_angle))
             y2 = y1 + hatch_length * math.sin(math.radians(hatch_angle))
             draw.line([(x1, y1), (x2, y2)], fill=(100, 100, 100), width=1)
         
-        # Incident ray: from top-left to glass surface
+        # Incident ray: from top-left to mirror surface
         theta_incident = task_data["theta_incident_radians"]
         ray_length_above = center_y - 50
         ray_start_x = center_x - ray_length_above * math.tan(theta_incident)
         ray_start_y = 50
         ray_end_x = center_x
-        ray_end_y = glass_y
+        ray_end_y = mirror_y
         
         # Draw incident ray
         self._draw_arrow(draw, (ray_start_x, ray_start_y), (ray_end_x, ray_end_y), 
                         color=(0, 0, 255), width=3)
         
-        # Refracted ray: from glass surface into glass
-        theta_refracted = task_data["theta_refracted_radians"]
+        # Reflected ray: from mirror surface, reflected upward
+        # Reflection law: incident angle = reflection angle (both from normal)
+        # Since incident ray comes from left of normal, reflected ray goes to right of normal
+        theta_reflected = task_data["theta_reflected_radians"]
         
-        # Refracted ray goes into glass (below surface)
-        ray_length_below = height - center_y - 50
-        refracted_end_x = center_x + ray_length_below * math.tan(theta_refracted)
-        refracted_end_y = height - 50
+        # Reflected ray goes upward (above mirror surface)
+        # Calculate intersections with all edges and find the closest one
+        # This ensures the ray always extends to the image edge
         
-        # Draw refracted ray with arrow
-        self._draw_arrow(draw, (center_x, glass_y), (refracted_end_x, refracted_end_y), 
+        # Intersection with top edge (y = 0, but we use y = 0 for edge)
+        distance_to_top = mirror_y
+        x_at_top = center_x + distance_to_top * math.tan(theta_reflected)
+        
+        # Intersection with right edge (x = width)
+        if theta_reflected > 0:  # Ray goes to the right
+            distance_to_right = width - center_x
+            y_at_right = mirror_y - distance_to_right / math.tan(theta_reflected)
+        else:
+            y_at_right = None
+        
+        # Intersection with left edge (x = 0)
+        if theta_reflected < 0:  # Ray goes to the left
+            distance_to_left = center_x
+            y_at_left = mirror_y - distance_to_left / math.tan(theta_reflected)
+        else:
+            y_at_left = None
+        
+        # Find the closest valid intersection (ray extends to nearest edge)
+        intersections = []
+        
+        # Top edge intersection
+        if 0 <= x_at_top <= width:
+            intersections.append((x_at_top, 0, distance_to_top / math.cos(theta_reflected)))
+        
+        # Right edge intersection
+        if y_at_right is not None and 0 <= y_at_right <= mirror_y:
+            intersections.append((width, y_at_right, distance_to_right / math.cos(theta_reflected)))
+        
+        # Left edge intersection
+        if y_at_left is not None and 0 <= y_at_left <= mirror_y:
+            intersections.append((0, y_at_left, distance_to_left / math.cos(theta_reflected)))
+        
+        # Select the closest intersection (shortest distance)
+        if intersections:
+            # Sort by distance and take the closest
+            intersections.sort(key=lambda x: x[2])
+            reflected_end_x, reflected_end_y, _ = intersections[0]
+        else:
+            # Fallback: extend to top edge at calculated x position
+            reflected_end_x = max(0, min(width, x_at_top))
+            reflected_end_y = 0
+        
+        # Draw reflected ray with arrow (extending to edge)
+        self._draw_arrow(draw, (center_x, mirror_y), (reflected_end_x, reflected_end_y), 
                         color=(255, 0, 0), width=3)
         
         # Draw normal line
         normal_length = 30
-        draw.line([(center_x, glass_y - normal_length), (center_x, glass_y + normal_length)], 
+        draw.line([(center_x, mirror_y - normal_length), (center_x, mirror_y + normal_length)], 
                  fill=(150, 150, 150), width=1)
         
         return img
@@ -252,13 +295,13 @@ class TaskGenerator(BaseGenerator):
         task_id: str,
         task_data: dict
     ) -> str:
-        """Generate ground truth video showing light refraction."""
+        """Generate ground truth video showing light reflection."""
         temp_dir = Path(tempfile.gettempdir()) / f"{self.config.domain}_videos"
         temp_dir.mkdir(parents=True, exist_ok=True)
         video_path = temp_dir / f"{task_id}_ground_truth.mp4"
         
         # Create animation frames
-        frames = self._create_refraction_animation_frames(task_data)
+        frames = self._create_reflection_animation_frames(task_data)
         
         result = self.video_generator.create_video_from_frames(
             frames,
@@ -267,19 +310,19 @@ class TaskGenerator(BaseGenerator):
         
         return str(result) if result else None
     
-    def _create_refraction_animation_frames(
+    def _create_reflection_animation_frames(
         self,
         task_data: dict,
         hold_frames: int = 5,
         transition_frames: int = 25
     ) -> list:
         """
-        Create animation frames showing light entering glass and refracting.
+        Create animation frames showing light hitting mirror and reflecting.
         
         The animation shows:
-        1. Initial state: incident ray approaching glass
-        2. Transition: ray entering glass and refracting
-        3. Final state: refracted ray propagating in glass
+        1. Initial state: incident ray approaching mirror
+        2. Transition: ray hitting mirror and reflecting
+        3. Final state: reflected ray propagating according to physical laws
         """
         frames = []
         
@@ -291,19 +334,15 @@ class TaskGenerator(BaseGenerator):
         # Create transition frames
         width, height = self.config.image_size
         center_x, center_y = width // 2, height // 2
-        glass_y = center_y
+        mirror_y = center_y
         
         theta_incident = task_data["theta_incident_radians"]
-        theta_refracted = task_data["theta_refracted_radians"]
+        theta_reflected = task_data["theta_reflected_radians"]
         
         # Calculate ray positions
         ray_length_above = center_y - 50
         ray_start_x = center_x - ray_length_above * math.tan(theta_incident)
         ray_start_y = 50
-        
-        ray_length_below = height - center_y - 50
-        refracted_end_x = center_x + ray_length_below * math.tan(theta_refracted)
-        refracted_end_y = height - 50
         
         for i in range(transition_frames):
             progress = i / (transition_frames - 1) if transition_frames > 1 else 1.0
@@ -312,54 +351,112 @@ class TaskGenerator(BaseGenerator):
             img = self.renderer.create_blank_image(bg_color=(255, 255, 255))
             draw = ImageDraw.Draw(img)
             
-            # Draw glass surface
-            glass_line_width = 3
-            draw.line([(0, glass_y), (width, glass_y)], fill=(0, 0, 0), width=glass_line_width)
+            # Draw mirror surface
+            mirror_line_width = 3
+            draw.line([(0, mirror_y), (width, mirror_y)], fill=(0, 0, 0), width=mirror_line_width)
             
-            # Draw glass hatch lines
+            # Draw mirror hatch lines (horizontal and diagonal)
             hatch_spacing = 8
             hatch_length = 15
-            hatch_angle = 45
             num_hatches = width // hatch_spacing
             
+            # Horizontal hatch lines
             for j in range(num_hatches):
                 x = j * hatch_spacing
                 x1 = x
-                y1 = glass_y + 5
+                y1 = mirror_y + 5
+                x2 = x1 + hatch_length
+                y2 = y1
+                draw.line([(x1, y1), (x2, y2)], fill=(100, 100, 100), width=1)
+            
+            # Diagonal hatch lines
+            hatch_angle = 45
+            for j in range(num_hatches):
+                x = j * hatch_spacing
+                x1 = x
+                y1 = mirror_y + 5
                 x2 = x1 + hatch_length * math.cos(math.radians(hatch_angle))
                 y2 = y1 + hatch_length * math.sin(math.radians(hatch_angle))
                 draw.line([(x1, y1), (x2, y2)], fill=(100, 100, 100), width=1)
             
             # Draw normal line
             normal_length = 30
-            draw.line([(center_x, glass_y - normal_length), (center_x, glass_y + normal_length)], 
+            draw.line([(center_x, mirror_y - normal_length), (center_x, mirror_y + normal_length)], 
                      fill=(150, 150, 150), width=1)
             
             # Draw incident ray (always visible)
-            self._draw_arrow(draw, (ray_start_x, ray_start_y), (center_x, glass_y), 
+            self._draw_arrow(draw, (ray_start_x, ray_start_y), (center_x, mirror_y), 
                             color=(0, 0, 255), width=3)
             
-            # Draw refracted ray (appears gradually)
+            # Draw reflected ray (appears gradually)
             if progress > 0:
-                # Calculate current refracted ray end position
-                current_refracted_length = ray_length_below * progress
-                current_refracted_x = center_x + current_refracted_length * math.tan(theta_refracted)
-                current_refracted_y = glass_y + current_refracted_length / math.cos(theta_refracted)
+                # Calculate final reflected ray end position (at image edge)
+                # Use the same logic as _render_final_state to ensure consistency
+                distance_to_top = mirror_y
+                x_at_top = center_x + distance_to_top * math.tan(theta_reflected)
                 
-                # Clamp to image bounds
-                current_refracted_y = min(current_refracted_y, refracted_end_y)
-                current_refracted_x = min(current_refracted_x, refracted_end_x)
+                # Intersection with right edge
+                if theta_reflected > 0:
+                    distance_to_right = width - center_x
+                    y_at_right = mirror_y - distance_to_right / math.tan(theta_reflected)
+                else:
+                    y_at_right = None
                 
-                self._draw_arrow(draw, (center_x, glass_y), (current_refracted_x, current_refracted_y), 
+                # Intersection with left edge
+                if theta_reflected < 0:
+                    distance_to_left = center_x
+                    y_at_left = mirror_y - distance_to_left / math.tan(theta_reflected)
+                else:
+                    y_at_left = None
+                
+                # Find the closest valid intersection
+                intersections = []
+                
+                # Top edge intersection
+                if 0 <= x_at_top <= width:
+                    intersections.append((x_at_top, 0, distance_to_top / math.cos(theta_reflected)))
+                
+                # Right edge intersection
+                if y_at_right is not None and 0 <= y_at_right <= mirror_y:
+                    intersections.append((width, y_at_right, distance_to_right / math.cos(theta_reflected)))
+                
+                # Left edge intersection
+                if y_at_left is not None and 0 <= y_at_left <= mirror_y:
+                    intersections.append((0, y_at_left, distance_to_left / math.cos(theta_reflected)))
+                
+                # Select the closest intersection
+                if intersections:
+                    intersections.sort(key=lambda x: x[2])
+                    final_end_x, final_end_y, _ = intersections[0]
+                else:
+                    # Fallback: extend to top edge
+                    final_end_x = max(0, min(width, x_at_top))
+                    final_end_y = 0
+                
+                # Current position based on progress (fixed angle, just extend length)
+                current_end_x = center_x + (final_end_x - center_x) * progress
+                current_end_y = mirror_y - (mirror_y - final_end_y) * progress
+                
+                self._draw_arrow(draw, (center_x, mirror_y), (current_end_x, current_end_y), 
                                 color=(255, 0, 0), width=3)
             
-            # Draw angle label (only in initial frames)
+            # Draw angle label and arc (only in initial frames)
             if progress < 0.3:
                 theta_degrees = task_data["theta_incident_degrees"]
+                theta = task_data["theta_incident_radians"]
                 angle_label = f"θ = {theta_degrees:.0f}°"
                 angle_arc_radius = 40
+                
+                # Draw angle arc (same as in initial state)
+                start_angle = -90  # Normal points up
+                end_angle = -90 - math.degrees(theta)  # Ray angle
+                bbox = (center_x - angle_arc_radius, mirror_y - angle_arc_radius,
+                        center_x + angle_arc_radius, mirror_y + angle_arc_radius)
+                draw.arc(bbox, start=end_angle, end=start_angle, fill=(0, 0, 0), width=2)
+                
+                # Position label near the angle arc
                 label_x = center_x + angle_arc_radius + 10
-                label_y = glass_y - angle_arc_radius
+                label_y = mirror_y - angle_arc_radius
                 font = self._get_font(size=20)
                 draw.text((label_x, label_y), angle_label, fill=(0, 0, 0), font=font)
             
