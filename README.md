@@ -349,8 +349,8 @@ python examples/generate.py --help
 
 `TaskPair` is the core data structure for task data, containing:
 
-- `task_id`: Unique task identifier (e.g., `"chess_0001"`)
-- `domain`: Task domain (e.g., `"chess"`, `"maze"`)
+- `task_id`: Unique task identifier (e.g., `"optics_0001"`)
+- `domain`: Task domain (e.g., `"optics"`, `"maze"`)
 - `prompt`: Task prompt text
 - `rubric`: Scoring rubric text
 - `first_image`: Initial state image (PIL Image)
@@ -383,11 +383,12 @@ img = renderer.create_image()  # Create blank image
 
 ## 🎯 Common Task Types
 
-### 1. Board Games (e.g., Chess)
+### 1. Physics/Optics Tasks (e.g., Light Refraction)
 
-- Use `python-chess` library to generate legal positions
-- Render board and pieces
-- Generate move animations
+- Generate physical scenarios with random parameters (e.g., refractive indices, angles)
+- Apply physical laws (e.g., Snell's law for refraction)
+- Render visual representations of physical phenomena
+- Create animations showing physical processes
 
 ### 2. Mazes
 
@@ -536,7 +537,7 @@ See the `LICENSE` file for details.
 If you have questions, please:
 1. Check the troubleshooting section in this document
 2. Check comments in the code
-3. Review example code (currently chess task)
+3. Review example code (currently optics task)
 
 ---
 

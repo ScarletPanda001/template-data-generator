@@ -167,13 +167,16 @@ class TaskGenerator(BaseGenerator):
         # Draw angle arc and label
         angle_arc_radius = 40
         # Angle arc from normal to incident ray
+        # Normal points up (-90 degrees in PIL's coordinate system)
+        # If ray comes from left, angle should be from normal (-90) to normal - theta
+        # PIL's arc: 0 degrees is 3 o'clock, positive is counterclockwise
         start_angle = -90  # Normal points up
-        end_angle = -90 + math.degrees(theta)
+        end_angle = -90 - math.degrees(theta)  # Ray angle (negative because it's to the left of normal)
         
         # Draw angle arc
         bbox = (center_x - angle_arc_radius, glass_y - angle_arc_radius,
                 center_x + angle_arc_radius, glass_y + angle_arc_radius)
-        draw.arc(bbox, start=start_angle, end=end_angle, fill=(0, 0, 0), width=2)
+        draw.arc(bbox, start=end_angle, end=start_angle, fill=(0, 0, 0), width=2)
         
         # Label angle: "θ = X°"
         theta_degrees = task_data["theta_incident_degrees"]
@@ -230,11 +233,31 @@ class TaskGenerator(BaseGenerator):
         theta_refracted = task_data["theta_refracted_radians"]
         
         # Refracted ray goes into glass (below surface)
-        ray_length_below = height - center_y - 50
-        refracted_end_x = center_x + ray_length_below * math.tan(theta_refracted)
-        refracted_end_y = height - 50
+        # Calculate where the ray hits the bottom edge of the image
+        # Ray starts at (center_x, glass_y) and propagates at angle theta_refracted
+        # We need to find intersection with bottom edge (y = height) or side edge
         
-        # Draw refracted ray with arrow
+        # Calculate intersection with bottom edge first
+        distance_to_bottom = height - glass_y
+        x_at_bottom = center_x + distance_to_bottom * math.tan(theta_refracted)
+        
+        # Check if ray hits bottom edge or side edge first
+        if 0 <= x_at_bottom <= width:
+            # Ray hits bottom edge
+            refracted_end_x = x_at_bottom
+            refracted_end_y = height
+        elif x_at_bottom > width:
+            # Ray hits right edge
+            distance_to_right = width - center_x
+            refracted_end_x = width
+            refracted_end_y = glass_y + distance_to_right / math.tan(theta_refracted)
+        else:
+            # Ray hits left edge (shouldn't happen for normal refraction, but handle it)
+            distance_to_left = center_x
+            refracted_end_x = 0
+            refracted_end_y = glass_y + distance_to_left / math.tan(theta_refracted)
+        
+        # Draw refracted ray with arrow (extending to edge)
         self._draw_arrow(draw, (center_x, glass_y), (refracted_end_x, refracted_end_y), 
                         color=(255, 0, 0), width=3)
         
@@ -341,23 +364,44 @@ class TaskGenerator(BaseGenerator):
             
             # Draw refracted ray (appears gradually)
             if progress > 0:
-                # Calculate current refracted ray end position
-                current_refracted_length = ray_length_below * progress
-                current_refracted_x = center_x + current_refracted_length * math.tan(theta_refracted)
-                current_refracted_y = glass_y + current_refracted_length / math.cos(theta_refracted)
+                # Calculate final refracted ray end position (at image edge)
+                distance_to_bottom = height - glass_y
+                x_at_bottom = center_x + distance_to_bottom * math.tan(theta_refracted)
                 
-                # Clamp to image bounds
-                current_refracted_y = min(current_refracted_y, refracted_end_y)
-                current_refracted_x = min(current_refracted_x, refracted_end_x)
+                if 0 <= x_at_bottom <= width:
+                    final_end_x = x_at_bottom
+                    final_end_y = height
+                elif x_at_bottom > width:
+                    distance_to_right = width - center_x
+                    final_end_x = width
+                    final_end_y = glass_y + distance_to_right / math.tan(theta_refracted)
+                else:
+                    distance_to_left = center_x
+                    final_end_x = 0
+                    final_end_y = glass_y + distance_to_left / math.tan(theta_refracted)
                 
-                self._draw_arrow(draw, (center_x, glass_y), (current_refracted_x, current_refracted_y), 
+                # Current position based on progress (fixed angle, just extend length)
+                current_end_x = center_x + (final_end_x - center_x) * progress
+                current_end_y = glass_y + (final_end_y - glass_y) * progress
+                
+                self._draw_arrow(draw, (center_x, glass_y), (current_end_x, current_end_y), 
                                 color=(255, 0, 0), width=3)
             
-            # Draw angle label (only in initial frames)
+            # Draw angle label and arc (only in initial frames)
             if progress < 0.3:
                 theta_degrees = task_data["theta_incident_degrees"]
+                theta = task_data["theta_incident_radians"]
                 angle_label = f"θ = {theta_degrees:.0f}°"
                 angle_arc_radius = 40
+                
+                # Draw angle arc (same as in initial state)
+                start_angle = -90  # Normal points up
+                end_angle = -90 - math.degrees(theta)  # Ray angle
+                bbox = (center_x - angle_arc_radius, glass_y - angle_arc_radius,
+                        center_x + angle_arc_radius, glass_y + angle_arc_radius)
+                draw.arc(bbox, start=end_angle, end=start_angle, fill=(0, 0, 0), width=2)
+                
+                # Position label near the angle arc
                 label_x = center_x + angle_arc_radius + 10
                 label_y = glass_y - angle_arc_radius
                 font = self._get_font(size=20)
