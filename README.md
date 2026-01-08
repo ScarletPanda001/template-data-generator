@@ -1,6 +1,6 @@
-# Additive Color Mixture Data Generator 🎨
+# Subtractive Color Mixture Data Generator 🎨
 
-A data generator for creating synthetic "Additive Color Mixture" reasoning tasks. This generator creates datasets where two colored circular balls move toward each other at the same speed until they completely merge. The overlapping region displays the additive color mixture of the original colors, where RGB values are added together and normalized if they exceed 255.
+A data generator for creating synthetic "Subtractive Color Mixture" reasoning tasks. This generator creates datasets where two colored circular balls move toward each other at the same speed until they completely merge. The overlapping region displays the subtractive color mixture of the original colors, where RGB values are first added together and normalized if they exceed 255, then subtracted from 255.
 
 ---
 
@@ -248,8 +248,8 @@ Define your prompt templates in the `PROMPTS` dictionary:
 ```python
 PROMPTS = {
     "default": [
-        "Two circular balls with different colors are positioned at different locations. Animate the balls moving toward each other at the same speed until they completely merge as one. When the balls overlap, the overlapping region should display the additive color mixture of their original colors.",
-        "Two colored circular balls start at different positions. They move toward each other at equal speeds until they fully overlap and merge into one. The overlapping region during movement and the final merged ball should show the additive color mixture of the two original ball colors.",
+        "Two circular balls with different colors are positioned at different locations. Animate the balls moving toward each other at the same speed until they completely merge as one. When the balls overlap, the overlapping region should display the subtractive color mixture of their original colors.",
+        "Two colored circular balls start at different positions. They move toward each other at equal speeds until they fully overlap and merge into one. The overlapping region during movement and the final merged ball should show the subtractive color mixture of the two original ball colors.",
     ],
 }
 
@@ -271,9 +271,9 @@ Add the `RUBRICS` dictionary in `src/prompts.py`:
 ```python
 RUBRICS = {
     "default": [
-        """Check if the solution correctly animates both balls moving toward each other at the same speed. Verify that the balls move in straight lines toward each other and meet at the midpoint between their initial positions. When the balls overlap during movement, check that only the overlapping region displays the additive color mixture while non-overlapping parts retain their original colors. Verify that the animation stops after the two balls completely merge into a single ball at the midpoint, and that the final merged ball shows the correct normalized additive color mixture.""",
+        """Check if the solution correctly animates both balls moving toward each other at the same speed. Verify that the balls move in straight lines toward each other and meet at the midpoint between their initial positions. When the balls overlap during movement, check that only the overlapping region displays the subtractive color mixture while non-overlapping parts retain their original colors. Verify that the animation stops after the two balls completely merge into a single ball at the midpoint, and that the final merged ball shows the correct normalized subtractive color mixture.""",
         
-        """Verify that the solution shows both balls moving at equal speeds toward each other until they completely merge. Check that during partial overlap, the overlapping region correctly displays the additive color mixture while maintaining the original colors in non-overlapping areas. Ensure the animation continues until the balls fully merge into one ball at the midpoint, then stops. Check that the final merged ball shows the correct normalized additive color mixture of the original two colors.""",
+        """Verify that the solution shows both balls moving at equal speeds toward each other until they completely merge. Check that during partial overlap, the overlapping region correctly displays the subtractive color mixture while maintaining the original colors in non-overlapping areas. Ensure the animation continues until the balls fully merge into one ball at the midpoint, then stops. Check that the final merged ball shows the correct normalized subtractive color mixture of the original two colors.""",
     ],
 }
 
@@ -364,11 +364,11 @@ img = renderer.create_image()  # Create blank image
 
 ## 🎯 Common Task Types
 
-### 1. Color Mixing Tasks (e.g., Additive Color Mixture)
+### 1. Color Mixing Tasks (e.g., Subtractive Color Mixture)
 
 - Generate two colored circular balls with random colors and positions
 - Animate balls moving toward each other at the same speed
-- Apply additive color mixing in overlapping regions (RGB addition with normalization)
+- Apply subtractive color mixing in overlapping regions (RGB values are first added together and normalized if they exceed 255, then subtracted from 255)
 - Create animations showing the merging process until complete overlap
 
 ### 2. Mazes

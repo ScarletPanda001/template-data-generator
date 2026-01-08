@@ -23,9 +23,10 @@ from .prompts import get_prompt, get_rubric
 
 class TaskGenerator(BaseGenerator):
     """
-    Color addition mixing task generator.
+    Color subtraction mixing task generator.
     
     Generates tasks for predicting color mixing when two colored balls overlap.
+    Uses subtractive color mixing: 255 minus the normalized additive mixture.
     """
     
     def __init__(self, config: TaskConfig):
@@ -72,7 +73,7 @@ class TaskGenerator(BaseGenerator):
     # ══════════════════════════════════════════════════════════════════════════
     
     def _generate_task_data(self) -> dict:
-        """Generate color mixing task data."""
+        """Generate color subtraction mixing task data."""
         width, height = self.config.image_size
         
         # Generate two random colors (RGB)
@@ -87,24 +88,29 @@ class TaskGenerator(BaseGenerator):
             random.randint(50, 255)
         )
         
-        # Calculate additive color mixing with normalization
-        # First add the colors
-        mixed_r = color1[0] + color2[0]
-        mixed_g = color1[1] + color2[1]
-        mixed_b = color1[2] + color2[2]
+        # Calculate subtractive color mixing with normalization
+        # First add the colors (as in additive mixing)
+        additive_r = color1[0] + color2[0]
+        additive_g = color1[1] + color2[1]
+        additive_b = color1[2] + color2[2]
         
         # Normalize if any channel exceeds 255
-        max_value = max(mixed_r, mixed_g, mixed_b)
+        max_value = max(additive_r, additive_g, additive_b)
         if max_value > 255:
             # Scale all channels proportionally to keep the color relationship
             scale = 255.0 / max_value
-            mixed_r = int(mixed_r * scale)
-            mixed_g = int(mixed_g * scale)
-            mixed_b = int(mixed_b * scale)
+            normalized_r = int(additive_r * scale)
+            normalized_g = int(additive_g * scale)
+            normalized_b = int(additive_b * scale)
         else:
-            mixed_r = int(mixed_r)
-            mixed_g = int(mixed_g)
-            mixed_b = int(mixed_b)
+            normalized_r = int(additive_r)
+            normalized_g = int(additive_g)
+            normalized_b = int(additive_b)
+        
+        # Apply subtractive mixing: subtract from 255
+        mixed_r = 255 - normalized_r
+        mixed_g = 255 - normalized_g
+        mixed_b = 255 - normalized_b
         
         mixed_color = (mixed_r, mixed_g, mixed_b)
         
@@ -214,7 +220,7 @@ class TaskGenerator(BaseGenerator):
         task_id: str,
         task_data: dict
     ) -> str:
-        """Generate ground truth video showing color mixing animation."""
+        """Generate ground truth video showing color subtraction mixing animation."""
         temp_dir = Path(tempfile.gettempdir()) / f"{self.config.domain}_videos"
         temp_dir.mkdir(parents=True, exist_ok=True)
         video_path = temp_dir / f"{task_id}_ground_truth.mp4"
@@ -241,7 +247,7 @@ class TaskGenerator(BaseGenerator):
         The animation shows:
         1. Initial state: two balls at different positions
         2. Transition: balls moving toward each other at same speed
-        3. Final state: balls overlapped at midpoint with mixed color
+        3. Final state: balls overlapped at midpoint with subtractive mixed color
         """
         frames = []
         
@@ -310,27 +316,32 @@ class TaskGenerator(BaseGenerator):
                 # Draw ball2 (non-overlap parts)
                 img_array[ball2_only_mask] = color2
                 
-                # Draw overlap region with normalized additive color mixing
-                # Calculate normalized mixed color for overlap region
-                overlap_mixed_r = np.zeros((height, width), dtype=np.float32)
-                overlap_mixed_g = np.zeros((height, width), dtype=np.float32)
-                overlap_mixed_b = np.zeros((height, width), dtype=np.float32)
+                # Draw overlap region with normalized subtractive color mixing
+                # First calculate additive mixing (as in additive mixing)
+                overlap_additive_r = np.zeros((height, width), dtype=np.float32)
+                overlap_additive_g = np.zeros((height, width), dtype=np.float32)
+                overlap_additive_b = np.zeros((height, width), dtype=np.float32)
                 
                 # Add colors in overlap region
-                overlap_mixed_r[overlap_mask] = color1[0] + color2[0]
-                overlap_mixed_g[overlap_mask] = color1[1] + color2[1]
-                overlap_mixed_b[overlap_mask] = color1[2] + color2[2]
+                overlap_additive_r[overlap_mask] = color1[0] + color2[0]
+                overlap_additive_g[overlap_mask] = color1[1] + color2[1]
+                overlap_additive_b[overlap_mask] = color1[2] + color2[2]
                 
                 # Normalize: find max value per pixel and scale if > 255
-                max_per_pixel = np.maximum(np.maximum(overlap_mixed_r, overlap_mixed_g), overlap_mixed_b)
+                max_per_pixel = np.maximum(np.maximum(overlap_additive_r, overlap_additive_g), overlap_additive_b)
                 scale_mask = max_per_pixel > 255
                 scale_factor = np.ones((height, width), dtype=np.float32)
                 scale_factor[scale_mask] = 255.0 / max_per_pixel[scale_mask]
                 
                 # Apply normalization
-                overlap_mixed_r = (overlap_mixed_r * scale_factor).astype(np.uint8)
-                overlap_mixed_g = (overlap_mixed_g * scale_factor).astype(np.uint8)
-                overlap_mixed_b = (overlap_mixed_b * scale_factor).astype(np.uint8)
+                overlap_normalized_r = (overlap_additive_r * scale_factor).astype(np.uint8)
+                overlap_normalized_g = (overlap_additive_g * scale_factor).astype(np.uint8)
+                overlap_normalized_b = (overlap_additive_b * scale_factor).astype(np.uint8)
+                
+                # Apply subtractive mixing: subtract from 255
+                overlap_mixed_r = 255 - overlap_normalized_r
+                overlap_mixed_g = 255 - overlap_normalized_g
+                overlap_mixed_b = 255 - overlap_normalized_b
                 
                 # Combine into RGB image
                 img_array[overlap_mask, 0] = overlap_mixed_r[overlap_mask]
