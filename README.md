@@ -56,6 +56,7 @@ data/questions/{domain}_task/{task_id}/
 ├── first_frame.png          # Initial state (REQUIRED)
 ├── final_frame.png          # Goal state (or goal.txt)
 ├── prompt.txt               # Instructions (REQUIRED)
+├── rubric.txt               # Evaluation rubric (REQUIRED)
 └── ground_truth.mp4         # Solution video (OPTIONAL)
 ```
 
@@ -136,4 +137,47 @@ class TaskConfig(GenerationConfig):
     difficulty: str = Field(default="medium", description="easy/medium/hard")
 ```
 
+### Step 4: Define Rubrics
+
+Add the `RUBRICS` dictionary in `src/prompts.py`:
+
+```python
+RUBRICS = {
+    "default": [
+        """Check if the solution correctly finds a path from start to goal. Verify that the path reaches the goal and the animation smoothly shows the route through the maze. Ensure the path is reasonably efficient and the visualization clearly shows both the start and end points.""",
+        
+        """Verify that the solution identifies a valid path through the maze and reaches the goal. The animation should show smooth path progression, and the final visualization should clearly demonstrate the complete route from entrance to exit.""",
+        
+        """Confirm the solution shows a correct path that reaches the goal. Check that the animation is smooth and the path visualization is clear and understandable throughout.""",
+    ],
+    
+    "easy": [
+        """Check if the solution correctly navigates through the simple maze structure. Verify the path reaches the goal and the animation clearly shows the route.""",
+    ],
+    
+    "hard": [
+        """Verify that the solution finds an optimal or near-optimal path through the complex maze. Check that the path correctly reaches the goal, the animation is smooth, and the visualization clearly shows the efficient route taken.""",
+    ],
+}
+
+def get_rubric(task_type: str = "default") -> str:
+    """Randomly select a rubric for the given task type"""
+    rubrics = RUBRICS.get(task_type, RUBRICS["default"])
+    return random.choice(rubrics)
+```
+
+**Rubric Format Requirements**:
+- ✅ **Use natural language descriptions** that align with human intuition, describing checkpoints like a human evaluator would
+- ✅ **Example style**:
+  - "Check if the final rotation angle and position match the expected result."
+  - "Verify that the solution correctly identifies the checkmating move."
+  - "Ensure the animation smoothly transitions from initial to final state."
+- ❌ **Do NOT use**:
+  - Numbered lists (e.g., "1. 2. 3.")
+  - Points or percentages (e.g., "1 point", "40%", "Award 1 point if...")
+  - Structured scoring tables
+- You can define different rubrics for different difficulty levels
+- Rubrics should be objective and actionable, using natural language to describe what needs to be checked
+
+---
 **Single entry point:** `python examples/generate.py --num-samples 50`

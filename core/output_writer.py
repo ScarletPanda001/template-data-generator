@@ -28,6 +28,10 @@ class OutputWriter:
         # Write prompt
         (task_dir / "prompt.txt").write_text(task_pair.prompt)
         
+        # Write rubric if provided
+        if task_pair.rubric:
+            (task_dir / "rubric.txt").write_text(task_pair.rubric)
+        
         # Write video if provided (preserve original extension)
         if task_pair.ground_truth_video and Path(task_pair.ground_truth_video).exists():
             video_src = Path(task_pair.ground_truth_video)

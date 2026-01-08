@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw
 from core import BaseGenerator, TaskPair, ImageRenderer
 from core.video_utils import VideoGenerator
 from .config import TaskConfig
-from .prompts import get_prompt
+from .prompts import get_prompt, get_rubric
 
 
 class TaskGenerator(BaseGenerator):
@@ -50,14 +50,37 @@ class TaskGenerator(BaseGenerator):
         # Generate task data (ball position, velocity, trajectory)
         task_data = self._generate_task_data()
         
-        # Render images
+        # Render initial image
         first_image = self._render_initial_state(task_data)
-        final_image = self._render_final_state(task_data)
         
-        # Generate video (optional)
+        # Generate video frames first (if video generation is enabled)
+        # This ensures we can use the last frame as final_image for consistency
         video_path = None
+        final_image = None
+        
         if self.config.generate_videos and self.video_generator:
-            video_path = self._generate_video(first_image, final_image, task_id, task_data)
+            # Create animation frames and get the final frame
+            # This ensures perfect consistency between final_image and video
+            frames, final_frame = self._create_animation_frames(task_data)
+            
+            if frames and final_frame:
+                # Use the final frame from video generation as final_image
+                # This ensures it matches exactly with the video's last frame
+                final_image = final_frame
+                
+                # Generate video from frames
+                temp_dir = Path(tempfile.gettempdir()) / f"{self.config.domain}_videos"
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                video_path = temp_dir / f"{task_id}_ground_truth.mp4"
+                
+                result = self.video_generator.create_video_from_frames(
+                    frames,
+                    video_path
+                )
+                video_path = str(result) if result else None
+        else:
+            # If video generation is disabled, use the original method
+            final_image = self._render_final_state(task_data)
         
         # Select prompt based on bounce count, including explicit bounce count
         bounce_count = task_data["num_bounces"]
@@ -69,13 +92,17 @@ class TaskGenerator(BaseGenerator):
             task_type = "complex"
         prompt = get_prompt(task_type, num_bounces=bounce_count)
         
+        # Get rubric for evaluation
+        rubric = get_rubric(task_type)
+        
         return TaskPair(
             task_id=task_id,
             domain=self.config.domain,
             prompt=prompt,
             first_image=first_image,
             final_image=final_image,
-            ground_truth_video=video_path
+            ground_truth_video=video_path,
+            rubric=rubric
         )
     
     # ══════════════════════════════════════════════════════════════════════════
@@ -272,13 +299,22 @@ class TaskGenerator(BaseGenerator):
         task_id: str,
         task_data: dict
     ) -> str:
-        """Generate ground truth video showing ball moving along trajectory."""
+        """
+        Generate ground truth video showing ball moving along trajectory.
+        
+        Note: This method is kept for backward compatibility but is no longer used.
+        Video generation is now handled directly in generate_task_pair() to ensure
+        final_image matches the video's last frame.
+        """
         temp_dir = Path(tempfile.gettempdir()) / f"{self.config.domain}_videos"
         temp_dir.mkdir(parents=True, exist_ok=True)
         video_path = temp_dir / f"{task_id}_ground_truth.mp4"
         
         # Create animation frames
-        frames = self._create_animation_frames(task_data)
+        frames, _ = self._create_animation_frames(task_data)
+        
+        if not frames:
+            return None
         
         result = self.video_generator.create_video_from_frames(
             frames,
@@ -287,15 +323,20 @@ class TaskGenerator(BaseGenerator):
         
         return str(result) if result else None
     
-    def _create_animation_frames(self, task_data: dict) -> List[Image.Image]:
-        """Create animation frames showing ball moving along trajectory, stopping after the specified number of bounces."""
+    def _create_animation_frames(self, task_data: dict) -> Tuple[List[Image.Image], Image.Image]:
+        """
+        Create animation frames showing ball moving along trajectory, stopping after the specified number of bounces.
+        
+        Returns:
+            Tuple of (frames list, final_frame): All frames for video and the final frame (before hold_frames)
+        """
         width, height = self.config.image_size
         trajectory = task_data["trajectory"]
         bounds = task_data["bounds"]
         bounce_points = task_data["bounce_points"]
         
         if not trajectory:
-            return []
+            return [], None
         
         # Calculate total time (up to the last bounce point)
         total_time = trajectory[-1][2] if trajectory else self.config.animation_duration
@@ -357,13 +398,15 @@ class TaskGenerator(BaseGenerator):
             
             frames.append(img)
         
+        # Save the final frame (before adding hold_frames)
+        final_frame = frames[-1].copy() if frames else None
+        
         # Add hold frames at the end showing the final state
-        final_frame = frames[-1] if frames else None
         if final_frame:
             for _ in range(hold_frames):
                 frames.append(final_frame.copy())
         
-        return frames
+        return frames, final_frame
     
     # ══════════════════════════════════════════════════════════════════════════
     #  RENDERING HELPERS

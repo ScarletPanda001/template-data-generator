@@ -12,6 +12,7 @@ class TaskPair(BaseModel):
     first_image: Any  # PIL Image
     final_image: Optional[Any] = None  # PIL Image
     ground_truth_video: Optional[str] = None  # Path to video (optional)
+    rubric: Optional[str] = None  # Evaluation rubric (optional)
     
     class Config:
         arbitrary_types_allowed = True
