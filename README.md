@@ -1,6 +1,6 @@
 # Additive Color Mixture Data Generator 🎨
 
-A data generator for creating synthetic "Additive Color Mixture" reasoning tasks. This generator creates datasets where two colored circular balls move toward each other at the same speed until they completely merge. The overlapping region displays the additive color mixture of the original colors, where RGB values are added together and normalized if they exceed 255.
+A data generator for creating synthetic "Additive Color Mixture" generation tasks. This generator creates datasets where two colored circular balls move toward each other at the same speed until they completely merge. The overlapping region displays the additive color mixture of the original colors.
 
 ---
 
