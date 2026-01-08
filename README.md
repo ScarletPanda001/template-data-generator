@@ -1,7 +1,6 @@
 # Subtractive Color Mixture Data Generator 🎨
 
-A data generator for creating synthetic "Subtractive Color Mixture" reasoning tasks. This generator creates datasets where two colored circular balls move toward each other at the same speed until they completely merge. The overlapping region displays the subtractive color mixture of the original colors, where RGB values are first added together and normalized if they exceed 255, then subtracted from 255.
-
+A data generator for creating synthetic "Subtractive Color Mixture" generation tasks. This generator creates datasets where two colored circular balls move toward each other at the same speed until they completely merge. The overlapping region displays the subtractive color mixture of the original colors.
 ---
 
 ## 📋 Table of Contents
