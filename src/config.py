@@ -30,7 +30,7 @@ class TaskConfig(GenerationConfig):
     #  OVERRIDE DEFAULTS
     # ══════════════════════════════════════════════════════════════════════════
     
-    domain: str = Field(default="optics")
+    domain: str = Field(default="color_mixing")
     image_size: tuple[int, int] = Field(default=(512, 512))
     
     # ══════════════════════════════════════════════════════════════════════════
@@ -51,13 +51,11 @@ class TaskConfig(GenerationConfig):
     #  TASK-SPECIFIC SETTINGS
     # ══════════════════════════════════════════════════════════════════════════
     
-    # Glass refractive index range
-    n_glass_min: float = Field(default=1.3, description="Minimum glass refractive index")
-    n_glass_max: float = Field(default=2.0, description="Maximum glass refractive index")
+    # Ball size (radius in pixels)
+    ball_radius: int = Field(default=60, description="Radius of the circular balls")
     
-    # Incident angle range (in degrees, measured from normal)
-    theta_min: float = Field(default=5.0, description="Minimum incident angle (degrees)")
-    theta_max: float = Field(default=80.0, description="Maximum incident angle (degrees)")
+    # Minimum distance between ball centers (to ensure they don't overlap initially)
+    min_distance: float = Field(default=200, description="Minimum distance between ball centers")
     
-    # Air refractive index (constant)
-    n_air: float = Field(default=1.0, description="Air refractive index")
+    # Margin from edges (to ensure balls are fully visible)
+    edge_margin: int = Field(default=80, description="Margin from image edges")

@@ -1,6 +1,6 @@
-# Optics Refraction Data Generator 🎯
+# Additive Color Mixture Data Generator 🎨
 
-A data generator for creating synthetic "Light Refraction" reasoning tasks. This generator creates datasets where light refraction through glass needs to be predicted, given the glass refractive index and incident angle. The refracted ray must extend to the edge of the image following Snell's law.
+A data generator for creating synthetic "Additive Color Mixture" reasoning tasks. This generator creates datasets where two colored circular balls move toward each other at the same speed until they completely merge. The overlapping region displays the additive color mixture of the original colors, where RGB values are added together and normalized if they exceed 255.
 
 ---
 
@@ -159,9 +159,9 @@ class TaskConfig(GenerationConfig):
     video_fps: int = Field(default=10)
     
     # 3. Add your task-specific parameters
-    grid_size: int = Field(default=10, description="Maze grid size")
-    wall_thickness: int = Field(default=2, description="Wall thickness")
-    difficulty: str = Field(default="medium", description="Difficulty level")
+    ball_radius: int = Field(default=60, description="Radius of the circular balls")
+    min_distance: float = Field(default=200, description="Minimum distance between ball centers")
+    edge_margin: int = Field(default=80, description="Margin from image edges")
 ```
 
 **Inherited attributes** (from `GenerationConfig`):
@@ -248,17 +248,8 @@ Define your prompt templates in the `PROMPTS` dictionary:
 ```python
 PROMPTS = {
     "default": [
-        "Animate a path from start to goal through the maze.",
-        "Show the solution route navigating through corridors.",
-        "Demonstrate the shortest path from entrance to exit.",
-    ],
-    
-    "easy": [
-        "Find and animate the path through this simple maze.",
-    ],
-    
-    "hard": [
-        "Navigate through this complex maze, showing the optimal route.",
+        "Two circular balls with different colors are positioned at different locations. Animate the balls moving toward each other at the same speed until they completely merge as one. When the balls overlap, the overlapping region should display the additive color mixture of their original colors.",
+        "Two colored circular balls start at different positions. They move toward each other at equal speeds until they fully overlap and merge into one. The overlapping region during movement and the final merged ball should show the additive color mixture of the two original ball colors.",
     ],
 }
 
@@ -280,19 +271,9 @@ Add the `RUBRICS` dictionary in `src/prompts.py`:
 ```python
 RUBRICS = {
     "default": [
-        """Check if the solution correctly finds a path from start to goal. Verify that the path reaches the goal and the animation smoothly shows the route through the maze. Ensure the path is reasonably efficient and the visualization clearly shows both the start and end points.""",
+        """Check if the solution correctly animates both balls moving toward each other at the same speed. Verify that the balls move in straight lines toward each other and meet at the midpoint between their initial positions. When the balls overlap during movement, check that only the overlapping region displays the additive color mixture while non-overlapping parts retain their original colors. Verify that the animation stops after the two balls completely merge into a single ball at the midpoint, and that the final merged ball shows the correct normalized additive color mixture.""",
         
-        """Verify that the solution identifies a valid path through the maze and reaches the goal. The animation should show smooth path progression, and the final visualization should clearly demonstrate the complete route from entrance to exit.""",
-        
-        """Confirm the solution shows a correct path that reaches the goal. Check that the animation is smooth and the path visualization is clear and understandable throughout.""",
-    ],
-    
-    "easy": [
-        """Check if the solution correctly navigates through the simple maze structure. Verify the path reaches the goal and the animation clearly shows the route.""",
-    ],
-    
-    "hard": [
-        """Verify that the solution finds an optimal or near-optimal path through the complex maze. Check that the path correctly reaches the goal, the animation is smooth, and the visualization clearly shows the efficient route taken.""",
+        """Verify that the solution shows both balls moving at equal speeds toward each other until they completely merge. Check that during partial overlap, the overlapping region correctly displays the additive color mixture while maintaining the original colors in non-overlapping areas. Ensure the animation continues until the balls fully merge into one ball at the midpoint, then stops. Check that the final merged ball shows the correct normalized additive color mixture of the original two colors.""",
     ],
 }
 
@@ -349,8 +330,8 @@ python examples/generate.py --help
 
 `TaskPair` is the core data structure for task data, containing:
 
-- `task_id`: Unique task identifier (e.g., `"optics_0001"`)
-- `domain`: Task domain (e.g., `"optics"`, `"maze"`)
+- `task_id`: Unique task identifier (e.g., `"color_mixing_0001"`)
+- `domain`: Task domain (e.g., `"color_mixing"`, `"maze"`)
 - `prompt`: Task prompt text
 - `rubric`: Scoring rubric text
 - `first_image`: Initial state image (PIL Image)
@@ -383,12 +364,12 @@ img = renderer.create_image()  # Create blank image
 
 ## 🎯 Common Task Types
 
-### 1. Physics/Optics Tasks (e.g., Light Refraction)
+### 1. Color Mixing Tasks (e.g., Additive Color Mixture)
 
-- Generate physical scenarios with random parameters (e.g., refractive indices, angles)
-- Apply physical laws (e.g., Snell's law for refraction)
-- Render visual representations of physical phenomena
-- Create animations showing physical processes
+- Generate two colored circular balls with random colors and positions
+- Animate balls moving toward each other at the same speed
+- Apply additive color mixing in overlapping regions (RGB addition with normalization)
+- Create animations showing the merging process until complete overlap
 
 ### 2. Mazes
 
@@ -537,7 +518,7 @@ See the `LICENSE` file for details.
 If you have questions, please:
 1. Check the troubleshooting section in this document
 2. Check comments in the code
-3. Review example code (currently optics task)
+3. Review example code (currently color mixing task)
 
 ---
 

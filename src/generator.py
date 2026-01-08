@@ -10,6 +10,8 @@
 import random
 import tempfile
 import math
+import numpy as np
+import cv2
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -21,9 +23,9 @@ from .prompts import get_prompt, get_rubric
 
 class TaskGenerator(BaseGenerator):
     """
-    Optics refraction task generator.
+    Color addition mixing task generator.
     
-    Generates tasks for predicting light refraction through glass.
+    Generates tasks for predicting color mixing when two colored balls overlap.
     """
     
     def __init__(self, config: TaskConfig):
@@ -70,201 +72,138 @@ class TaskGenerator(BaseGenerator):
     # ══════════════════════════════════════════════════════════════════════════
     
     def _generate_task_data(self) -> dict:
-        """Generate optics refraction task data."""
-        # Random glass refractive index
-        n_glass = random.uniform(self.config.n_glass_min, self.config.n_glass_max)
+        """Generate color mixing task data."""
+        width, height = self.config.image_size
         
-        # Random incident angle (theta) in degrees
-        theta_degrees = random.uniform(self.config.theta_min, self.config.theta_max)
-        theta_radians = math.radians(theta_degrees)
+        # Generate two random colors (RGB)
+        color1 = (
+            random.randint(50, 255),
+            random.randint(50, 255),
+            random.randint(50, 255)
+        )
+        color2 = (
+            random.randint(50, 255),
+            random.randint(50, 255),
+            random.randint(50, 255)
+        )
         
-        # Calculate refraction angle using Snell's law: n1 * sin(theta1) = n2 * sin(theta2)
-        # n_air * sin(theta_incident) = n_glass * sin(theta_refracted)
-        sin_theta_refracted = (self.config.n_air * math.sin(theta_radians)) / n_glass
+        # Calculate additive color mixing with normalization
+        # First add the colors
+        mixed_r = color1[0] + color2[0]
+        mixed_g = color1[1] + color2[1]
+        mixed_b = color1[2] + color2[2]
         
-        # Check for total internal reflection (shouldn't happen for air to glass)
-        if sin_theta_refracted > 1.0:
-            sin_theta_refracted = 1.0
+        # Normalize if any channel exceeds 255
+        max_value = max(mixed_r, mixed_g, mixed_b)
+        if max_value > 255:
+            # Scale all channels proportionally to keep the color relationship
+            scale = 255.0 / max_value
+            mixed_r = int(mixed_r * scale)
+            mixed_g = int(mixed_g * scale)
+            mixed_b = int(mixed_b * scale)
+        else:
+            mixed_r = int(mixed_r)
+            mixed_g = int(mixed_g)
+            mixed_b = int(mixed_b)
         
-        theta_refracted_radians = math.asin(sin_theta_refracted)
-        theta_refracted_degrees = math.degrees(theta_refracted_radians)
+        mixed_color = (mixed_r, mixed_g, mixed_b)
+        
+        # Generate two ball positions that don't overlap
+        # Ensure balls are fully visible and have minimum distance
+        margin = self.config.edge_margin
+        radius = self.config.ball_radius
+        min_dist = self.config.min_distance
+        
+        # Try to find valid positions
+        for _ in range(100):  # Try up to 100 times
+            x1 = random.randint(margin, width - margin)
+            y1 = random.randint(margin, height - margin)
+            x2 = random.randint(margin, width - margin)
+            y2 = random.randint(margin, height - margin)
+            
+            # Check distance
+            distance = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+            if distance >= min_dist:
+                # Calculate midpoint (where they will meet)
+                mid_x = (x1 + x2) / 2
+                mid_y = (y1 + y2) / 2
+                
+                return {
+                    "color1": color1,
+                    "color2": color2,
+                    "mixed_color": mixed_color,
+                    "ball1_pos": (x1, y1),
+                    "ball2_pos": (x2, y2),
+                    "final_pos": (mid_x, mid_y),
+                    "type": "default"
+                }
+        
+        # Fallback: use default positions if we can't find valid ones
+        x1 = width // 4
+        y1 = height // 2
+        x2 = 3 * width // 4
+        y2 = height // 2
+        mid_x = (x1 + x2) / 2
+        mid_y = (y1 + y2) / 2
         
         return {
-            "n_glass": n_glass,
-            "n_air": self.config.n_air,
-            "theta_incident_degrees": theta_degrees,
-            "theta_incident_radians": theta_radians,
-            "theta_refracted_degrees": theta_refracted_degrees,
-            "theta_refracted_radians": theta_refracted_radians,
+            "color1": color1,
+            "color2": color2,
+            "mixed_color": mixed_color,
+            "ball1_pos": (x1, y1),
+            "ball2_pos": (x2, y2),
+            "final_pos": (mid_x, mid_y),
             "type": "default"
         }
-        """Generate mate-in-1 position using chess library."""
-        generators = [
-            self._gen_back_rank_mate,
-            self._gen_queen_mate,
-            self._gen_rook_mate,
-        ]
-        
-        for _ in range(10):  # Try up to 10 times
-            gen_func = random.choice(generators)
-            position = gen_func()
-            if position and self._validate_mate(position):
-                return position
-        
-        # Fallback to template
-        return random.choice(self._get_fallback_templates())
     
     def _render_initial_state(self, task_data: dict) -> Image.Image:
-        """Render initial state: glass surface, incident ray, and angle annotation."""
+        """Render initial state: two colored balls at different positions."""
         img = self.renderer.create_blank_image(bg_color=(255, 255, 255))
         draw = ImageDraw.Draw(img)
         
-        width, height = self.config.image_size
-        center_x, center_y = width // 2, height // 2
+        radius = self.config.ball_radius
+        ball1_pos = task_data["ball1_pos"]
+        ball2_pos = task_data["ball2_pos"]
+        color1 = task_data["color1"]
+        color2 = task_data["color2"]
         
-        # Glass surface: horizontal line in the middle
-        glass_y = center_y
-        glass_line_width = 3
-        draw.line([(0, glass_y), (width, glass_y)], fill=(0, 0, 0), width=glass_line_width)
+        # Draw ball 1
+        bbox1 = (
+            ball1_pos[0] - radius,
+            ball1_pos[1] - radius,
+            ball1_pos[0] + radius,
+            ball1_pos[1] + radius
+        )
+        draw.ellipse(bbox1, fill=color1, outline=(0, 0, 0), width=2)
         
-        # Glass hatch lines (below the surface)
-        hatch_spacing = 8
-        hatch_length = 15
-        hatch_angle = 45  # degrees
-        num_hatches = width // hatch_spacing
-        
-        for i in range(num_hatches):
-            x = i * hatch_spacing
-            # Draw diagonal hatch lines
-            x1 = x
-            y1 = glass_y + 5
-            x2 = x1 + hatch_length * math.cos(math.radians(hatch_angle))
-            y2 = y1 + hatch_length * math.sin(math.radians(hatch_angle))
-            draw.line([(x1, y1), (x2, y2)], fill=(100, 100, 100), width=1)
-        
-        # Incident ray: from top-left to glass surface
-        theta = task_data["theta_incident_radians"]
-        
-        # Calculate ray start point (above glass)
-        # Ray comes from left side, hits glass surface at center
-        ray_length_above = center_y - 50  # Distance from top to glass
-        ray_start_x = center_x - ray_length_above * math.tan(theta)
-        ray_start_y = 50
-        
-        # Ray end point (at glass surface)
-        ray_end_x = center_x
-        ray_end_y = glass_y
-        
-        # Draw incident ray with arrow
-        self._draw_arrow(draw, (ray_start_x, ray_start_y), (ray_end_x, ray_end_y), 
-                        color=(0, 0, 255), width=3)
-        
-        # Draw normal line (perpendicular to glass surface)
-        normal_length = 30
-        draw.line([(center_x, glass_y - normal_length), (center_x, glass_y + normal_length)], 
-                 fill=(150, 150, 150), width=1)
-        
-        # Draw angle arc and label
-        angle_arc_radius = 40
-        # Angle arc from normal to incident ray
-        # Normal points up (-90 degrees in PIL's coordinate system)
-        # If ray comes from left, angle should be from normal (-90) to normal - theta
-        # PIL's arc: 0 degrees is 3 o'clock, positive is counterclockwise
-        start_angle = -90  # Normal points up
-        end_angle = -90 - math.degrees(theta)  # Ray angle (negative because it's to the left of normal)
-        
-        # Draw angle arc
-        bbox = (center_x - angle_arc_radius, glass_y - angle_arc_radius,
-                center_x + angle_arc_radius, glass_y + angle_arc_radius)
-        draw.arc(bbox, start=end_angle, end=start_angle, fill=(0, 0, 0), width=2)
-        
-        # Label angle: "θ = X°"
-        theta_degrees = task_data["theta_incident_degrees"]
-        angle_label = f"θ = {theta_degrees:.0f}°"
-        
-        # Position label near the angle arc
-        label_x = center_x + angle_arc_radius + 10
-        label_y = glass_y - angle_arc_radius
-        font = self._get_font(size=20)
-        draw.text((label_x, label_y), angle_label, fill=(0, 0, 0), font=font)
+        # Draw ball 2
+        bbox2 = (
+            ball2_pos[0] - radius,
+            ball2_pos[1] - radius,
+            ball2_pos[0] + radius,
+            ball2_pos[1] + radius
+        )
+        draw.ellipse(bbox2, fill=color2, outline=(0, 0, 0), width=2)
         
         return img
     
     def _render_final_state(self, task_data: dict) -> Image.Image:
-        """Render final state: glass surface, incident ray, refracted ray."""
+        """Render final state: two balls overlapped at midpoint with mixed color."""
         img = self.renderer.create_blank_image(bg_color=(255, 255, 255))
         draw = ImageDraw.Draw(img)
         
-        width, height = self.config.image_size
-        center_x, center_y = width // 2, height // 2
+        radius = self.config.ball_radius
+        final_pos = task_data["final_pos"]
+        mixed_color = task_data["mixed_color"]
         
-        # Glass surface: horizontal line in the middle
-        glass_y = center_y
-        glass_line_width = 3
-        draw.line([(0, glass_y), (width, glass_y)], fill=(0, 0, 0), width=glass_line_width)
-        
-        # Glass hatch lines (below the surface)
-        hatch_spacing = 8
-        hatch_length = 15
-        hatch_angle = 45  # degrees
-        num_hatches = width // hatch_spacing
-        
-        for i in range(num_hatches):
-            x = i * hatch_spacing
-            x1 = x
-            y1 = glass_y + 5
-            x2 = x1 + hatch_length * math.cos(math.radians(hatch_angle))
-            y2 = y1 + hatch_length * math.sin(math.radians(hatch_angle))
-            draw.line([(x1, y1), (x2, y2)], fill=(100, 100, 100), width=1)
-        
-        # Incident ray: from top-left to glass surface
-        theta_incident = task_data["theta_incident_radians"]
-        ray_length_above = center_y - 50
-        ray_start_x = center_x - ray_length_above * math.tan(theta_incident)
-        ray_start_y = 50
-        ray_end_x = center_x
-        ray_end_y = glass_y
-        
-        # Draw incident ray
-        self._draw_arrow(draw, (ray_start_x, ray_start_y), (ray_end_x, ray_end_y), 
-                        color=(0, 0, 255), width=3)
-        
-        # Refracted ray: from glass surface into glass
-        theta_refracted = task_data["theta_refracted_radians"]
-        
-        # Refracted ray goes into glass (below surface)
-        # Calculate where the ray hits the bottom edge of the image
-        # Ray starts at (center_x, glass_y) and propagates at angle theta_refracted
-        # We need to find intersection with bottom edge (y = height) or side edge
-        
-        # Calculate intersection with bottom edge first
-        distance_to_bottom = height - glass_y
-        x_at_bottom = center_x + distance_to_bottom * math.tan(theta_refracted)
-        
-        # Check if ray hits bottom edge or side edge first
-        if 0 <= x_at_bottom <= width:
-            # Ray hits bottom edge
-            refracted_end_x = x_at_bottom
-            refracted_end_y = height
-        elif x_at_bottom > width:
-            # Ray hits right edge
-            distance_to_right = width - center_x
-            refracted_end_x = width
-            refracted_end_y = glass_y + distance_to_right / math.tan(theta_refracted)
-        else:
-            # Ray hits left edge (shouldn't happen for normal refraction, but handle it)
-            distance_to_left = center_x
-            refracted_end_x = 0
-            refracted_end_y = glass_y + distance_to_left / math.tan(theta_refracted)
-        
-        # Draw refracted ray with arrow (extending to edge)
-        self._draw_arrow(draw, (center_x, glass_y), (refracted_end_x, refracted_end_y), 
-                        color=(255, 0, 0), width=3)
-        
-        # Draw normal line
-        normal_length = 30
-        draw.line([(center_x, glass_y - normal_length), (center_x, glass_y + normal_length)], 
-                 fill=(150, 150, 150), width=1)
+        # Draw the overlapped ball at the midpoint with mixed color
+        bbox = (
+            final_pos[0] - radius,
+            final_pos[1] - radius,
+            final_pos[0] + radius,
+            final_pos[1] + radius
+        )
+        draw.ellipse(bbox, fill=mixed_color, outline=(0, 0, 0), width=2)
         
         return img
     
@@ -275,13 +214,13 @@ class TaskGenerator(BaseGenerator):
         task_id: str,
         task_data: dict
     ) -> str:
-        """Generate ground truth video showing light refraction."""
+        """Generate ground truth video showing color mixing animation."""
         temp_dir = Path(tempfile.gettempdir()) / f"{self.config.domain}_videos"
         temp_dir.mkdir(parents=True, exist_ok=True)
         video_path = temp_dir / f"{task_id}_ground_truth.mp4"
         
         # Create animation frames
-        frames = self._create_refraction_animation_frames(task_data)
+        frames = self._create_mixing_animation_frames(task_data)
         
         result = self.video_generator.create_video_from_frames(
             frames,
@@ -290,19 +229,19 @@ class TaskGenerator(BaseGenerator):
         
         return str(result) if result else None
     
-    def _create_refraction_animation_frames(
+    def _create_mixing_animation_frames(
         self,
         task_data: dict,
         hold_frames: int = 5,
         transition_frames: int = 25
     ) -> list:
         """
-        Create animation frames showing light entering glass and refracting.
+        Create animation frames showing two balls moving toward each other and mixing.
         
         The animation shows:
-        1. Initial state: incident ray approaching glass
-        2. Transition: ray entering glass and refracting
-        3. Final state: refracted ray propagating in glass
+        1. Initial state: two balls at different positions
+        2. Transition: balls moving toward each other at same speed
+        3. Final state: balls overlapped at midpoint with mixed color
         """
         frames = []
         
@@ -312,100 +251,129 @@ class TaskGenerator(BaseGenerator):
             frames.append(first_frame)
         
         # Create transition frames
-        width, height = self.config.image_size
-        center_x, center_y = width // 2, height // 2
-        glass_y = center_y
-        
-        theta_incident = task_data["theta_incident_radians"]
-        theta_refracted = task_data["theta_refracted_radians"]
-        
-        # Calculate ray positions
-        ray_length_above = center_y - 50
-        ray_start_x = center_x - ray_length_above * math.tan(theta_incident)
-        ray_start_y = 50
-        
-        ray_length_below = height - center_y - 50
-        refracted_end_x = center_x + ray_length_below * math.tan(theta_refracted)
-        refracted_end_y = height - 50
+        radius = self.config.ball_radius
+        ball1_start = task_data["ball1_pos"]
+        ball2_start = task_data["ball2_pos"]
+        final_pos = task_data["final_pos"]
+        color1 = task_data["color1"]
+        color2 = task_data["color2"]
+        mixed_color = task_data["mixed_color"]
         
         for i in range(transition_frames):
             progress = i / (transition_frames - 1) if transition_frames > 1 else 1.0
             
-            # Create frame with animated ray
+            # Create frame with animated balls
             img = self.renderer.create_blank_image(bg_color=(255, 255, 255))
             draw = ImageDraw.Draw(img)
             
-            # Draw glass surface
-            glass_line_width = 3
-            draw.line([(0, glass_y), (width, glass_y)], fill=(0, 0, 0), width=glass_line_width)
+            # Calculate current positions (linear interpolation)
+            ball1_current = (
+                ball1_start[0] + (final_pos[0] - ball1_start[0]) * progress,
+                ball1_start[1] + (final_pos[1] - ball1_start[1]) * progress
+            )
+            ball2_current = (
+                ball2_start[0] + (final_pos[0] - ball2_start[0]) * progress,
+                ball2_start[1] + (final_pos[1] - ball2_start[1]) * progress
+            )
             
-            # Draw glass hatch lines
-            hatch_spacing = 8
-            hatch_length = 15
-            hatch_angle = 45
-            num_hatches = width // hatch_spacing
+            # Calculate distance between ball centers
+            distance = math.sqrt(
+                (ball2_current[0] - ball1_current[0]) ** 2 +
+                (ball2_current[1] - ball1_current[1]) ** 2
+            )
             
-            for j in range(num_hatches):
-                x = j * hatch_spacing
-                x1 = x
-                y1 = glass_y + 5
-                x2 = x1 + hatch_length * math.cos(math.radians(hatch_angle))
-                y2 = y1 + hatch_length * math.sin(math.radians(hatch_angle))
-                draw.line([(x1, y1), (x2, y2)], fill=(100, 100, 100), width=1)
-            
-            # Draw normal line
-            normal_length = 30
-            draw.line([(center_x, glass_y - normal_length), (center_x, glass_y + normal_length)], 
-                     fill=(150, 150, 150), width=1)
-            
-            # Draw incident ray (always visible)
-            self._draw_arrow(draw, (ray_start_x, ray_start_y), (center_x, glass_y), 
-                            color=(0, 0, 255), width=3)
-            
-            # Draw refracted ray (appears gradually)
-            if progress > 0:
-                # Calculate final refracted ray end position (at image edge)
-                distance_to_bottom = height - glass_y
-                x_at_bottom = center_x + distance_to_bottom * math.tan(theta_refracted)
+            # Draw balls with proper overlap handling
+            if distance < 2 * radius:
+                # Balls are overlapping - need to draw with mixed color only in overlap region
+                # Use numpy for efficient pixel operations
                 
-                if 0 <= x_at_bottom <= width:
-                    final_end_x = x_at_bottom
-                    final_end_y = height
-                elif x_at_bottom > width:
-                    distance_to_right = width - center_x
-                    final_end_x = width
-                    final_end_y = glass_y + distance_to_right / math.tan(theta_refracted)
-                else:
-                    distance_to_left = center_x
-                    final_end_x = 0
-                    final_end_y = glass_y + distance_to_left / math.tan(theta_refracted)
+                width, height = self.config.image_size
+                img_array = np.ones((height, width, 3), dtype=np.uint8) * 255
                 
-                # Current position based on progress (fixed angle, just extend length)
-                current_end_x = center_x + (final_end_x - center_x) * progress
-                current_end_y = glass_y + (final_end_y - glass_y) * progress
+                # Create coordinate grids
+                y_coords, x_coords = np.ogrid[:height, :width]
                 
-                self._draw_arrow(draw, (center_x, glass_y), (current_end_x, current_end_y), 
-                                color=(255, 0, 0), width=3)
-            
-            # Draw angle label and arc (only in initial frames)
-            if progress < 0.3:
-                theta_degrees = task_data["theta_incident_degrees"]
-                theta = task_data["theta_incident_radians"]
-                angle_label = f"θ = {theta_degrees:.0f}°"
-                angle_arc_radius = 40
+                # Calculate distances from each ball center
+                dist1 = np.sqrt((x_coords - ball1_current[0]) ** 2 + (y_coords - ball1_current[1]) ** 2)
+                dist2 = np.sqrt((x_coords - ball2_current[0]) ** 2 + (y_coords - ball2_current[1]) ** 2)
                 
-                # Draw angle arc (same as in initial state)
-                start_angle = -90  # Normal points up
-                end_angle = -90 - math.degrees(theta)  # Ray angle
-                bbox = (center_x - angle_arc_radius, glass_y - angle_arc_radius,
-                        center_x + angle_arc_radius, glass_y + angle_arc_radius)
-                draw.arc(bbox, start=end_angle, end=start_angle, fill=(0, 0, 0), width=2)
+                # Create masks
+                ball1_mask = dist1 <= radius
+                ball2_mask = dist2 <= radius
+                overlap_mask = ball1_mask & ball2_mask
+                ball1_only_mask = ball1_mask & ~overlap_mask
+                ball2_only_mask = ball2_mask & ~overlap_mask
                 
-                # Position label near the angle arc
-                label_x = center_x + angle_arc_radius + 10
-                label_y = glass_y - angle_arc_radius
-                font = self._get_font(size=20)
-                draw.text((label_x, label_y), angle_label, fill=(0, 0, 0), font=font)
+                # Draw ball1 (non-overlap parts)
+                img_array[ball1_only_mask] = color1
+                
+                # Draw ball2 (non-overlap parts)
+                img_array[ball2_only_mask] = color2
+                
+                # Draw overlap region with normalized additive color mixing
+                # Calculate normalized mixed color for overlap region
+                overlap_mixed_r = np.zeros((height, width), dtype=np.float32)
+                overlap_mixed_g = np.zeros((height, width), dtype=np.float32)
+                overlap_mixed_b = np.zeros((height, width), dtype=np.float32)
+                
+                # Add colors in overlap region
+                overlap_mixed_r[overlap_mask] = color1[0] + color2[0]
+                overlap_mixed_g[overlap_mask] = color1[1] + color2[1]
+                overlap_mixed_b[overlap_mask] = color1[2] + color2[2]
+                
+                # Normalize: find max value per pixel and scale if > 255
+                max_per_pixel = np.maximum(np.maximum(overlap_mixed_r, overlap_mixed_g), overlap_mixed_b)
+                scale_mask = max_per_pixel > 255
+                scale_factor = np.ones((height, width), dtype=np.float32)
+                scale_factor[scale_mask] = 255.0 / max_per_pixel[scale_mask]
+                
+                # Apply normalization
+                overlap_mixed_r = (overlap_mixed_r * scale_factor).astype(np.uint8)
+                overlap_mixed_g = (overlap_mixed_g * scale_factor).astype(np.uint8)
+                overlap_mixed_b = (overlap_mixed_b * scale_factor).astype(np.uint8)
+                
+                # Combine into RGB image
+                img_array[overlap_mask, 0] = overlap_mixed_r[overlap_mask]
+                img_array[overlap_mask, 1] = overlap_mixed_g[overlap_mask]
+                img_array[overlap_mask, 2] = overlap_mixed_b[overlap_mask]
+                
+                # Convert back to PIL Image
+                img = Image.fromarray(img_array, 'RGB')
+                draw = ImageDraw.Draw(img)
+                
+                # Draw complete black outlines for both balls (always visible, regardless of overlap)
+                bbox1 = (
+                    int(ball1_current[0] - radius),
+                    int(ball1_current[1] - radius),
+                    int(ball1_current[0] + radius),
+                    int(ball1_current[1] + radius)
+                )
+                draw.ellipse(bbox1, outline=(0, 0, 0), width=2)
+                
+                bbox2 = (
+                    int(ball2_current[0] - radius),
+                    int(ball2_current[1] - radius),
+                    int(ball2_current[0] + radius),
+                    int(ball2_current[1] + radius)
+                )
+                draw.ellipse(bbox2, outline=(0, 0, 0), width=2)
+            else:
+                # Draw both balls separately (no overlap)
+                bbox1 = (
+                    ball1_current[0] - radius,
+                    ball1_current[1] - radius,
+                    ball1_current[0] + radius,
+                    ball1_current[1] + radius
+                )
+                draw.ellipse(bbox1, fill=color1, outline=(0, 0, 0), width=2)
+                
+                bbox2 = (
+                    ball2_current[0] - radius,
+                    ball2_current[1] - radius,
+                    ball2_current[0] + radius,
+                    ball2_current[1] + radius
+                )
+                draw.ellipse(bbox2, fill=color2, outline=(0, 0, 0), width=2)
             
             frames.append(img)
         
